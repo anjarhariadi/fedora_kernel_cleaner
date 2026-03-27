@@ -6,6 +6,7 @@ A simple script to safely remove old kernel packages from Fedora Linux, freeing 
 
 - Removes old kernel packages while keeping the latest versions
 - Removes old `kmod-nvidia` packages that don't match any kept kernel version
+- Interactive nvidia cleanup prompt (or use flags to automate)
 - Configurable kernel retention count
 - Dry-run mode to preview removals
 - Shows disk space to be freed
@@ -36,12 +37,14 @@ clean-kernel [OPTIONS]
 
 ### Options
 
-| Option          | Description                                     |
-| --------------- | ----------------------------------------------- |
-| `-k, --keep N`  | Number of kernel versions to keep (default: 2)  |
-| `-n, --dry-run` | Preview what would be removed without executing |
-| `-y, --yes`     | Skip confirmation prompt                        |
-| `-h, --help`    | Show help message                               |
+| Option               | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `-k, --keep N`      | Number of kernel versions to keep (default: 2)         |
+| `-n, --dry-run`     | Preview what would be removed without executing         |
+| `-y, --yes`         | Skip confirmation prompt                                |
+| `-N, --include-nvidia` | Include old kmod-nvidia packages in removal          |
+| `-x, --exclude-nvidia` | Exclude kmod-nvidia packages from removal            |
+| `-h, --help`        | Show help message                                       |
 
 ### Examples
 
@@ -60,6 +63,12 @@ clean-kernel -y
 
 # Keep 3 kernels, dry-run mode
 clean-kernel -k 3 -n
+
+# Skip kmod-nvidia cleanup
+clean-kernel --exclude-nvidia
+
+# Include nvidia packages, skip confirm
+clean-kernel --include-nvidia -y
 ```
 
 ## Safety
@@ -68,6 +77,7 @@ clean-kernel -k 3 -n
 - Always requires sudo privileges
 - Shows exactly what will be removed before making changes
 - Does not modify personal data or system configuration
+- kmod-nvidia cleanup is optional (prompts by default, or use flags to control)
 
 ## Requirements
 

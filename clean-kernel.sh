@@ -5,6 +5,7 @@ SCRIPT_NAME="$(basename "$0")"
 KEEP_COUNT=2
 DRY_RUN=false
 SKIP_CONFIRM=false
+NVIDIA_MODE="prompt"
 
 usage() {
     cat <<EOF
@@ -13,17 +14,21 @@ Usage: $SCRIPT_NAME [OPTIONS]
 Remove old kernel packages from Fedora Linux.
 
 OPTIONS:
-    -k, --keep N       Number of kernel versions to keep (default: 2)
-    -n, --dry-run      Preview what would be removed without executing
-    -y, --yes          Skip confirmation prompt
-    -h, --help         Show this help message
+    -k, --keep N         Number of kernel versions to keep (default: 2)
+    -n, --dry-run        Preview what would be removed without executing
+    -y, --yes            Skip confirmation prompt
+    -N, --include-nvidia Include old kmod-nvidia packages in removal
+    -x, --exclude-nvidia Exclude kmod-nvidia packages from removal
+    -h, --help           Show this help message
 
 EXAMPLES:
-    $SCRIPT_NAME                    # Keep 2 latest kernels, ask for confirmation
-    $SCRIPT_NAME -n                # Preview removals
-    $SCRIPT_NAME -k 1              # Keep only the running kernel (not recommended)
-    $SCRIPT_NAME -y                 # Remove without asking
-    $SCRIPT_NAME -k 3 -n           # Keep 3 kernels, preview only
+    $SCRIPT_NAME                      # Keep 2 latest kernels, ask for confirmation
+    $SCRIPT_NAME -n                  # Preview removals
+    $SCRIPT_NAME -k 1                # Keep only the running kernel (not recommended)
+    $SCRIPT_NAME -y                  # Remove without asking
+    $SCRIPT_NAME -k 3 -n             # Keep 3 kernels, preview only
+    $SCRIPT_NAME --exclude-nvidia     # Skip kmod-nvidia cleanup
+    $SCRIPT_NAME --include-nvidia -y # Include nvidia packages, skip confirm
 
 EOF
     exit 0
@@ -46,6 +51,14 @@ parse_args() {
                 ;;
             -y|--yes)
                 SKIP_CONFIRM=true
+                shift
+                ;;
+            -N|--include-nvidia)
+                NVIDIA_MODE="include"
+                shift
+                ;;
+            -x|--exclude-nvidia)
+                NVIDIA_MODE="exclude"
                 shift
                 ;;
             -h|--help)
@@ -115,6 +128,7 @@ get_nvidia_kmod_packages() {
 remove_old_kernels() {
     local keep_count="$1"
     local dry_run="$2"
+    local nvidia_mode="$3"
     
     local running_kernel_version
     running_kernel_version=$(get_running_kernel_version)
@@ -174,7 +188,20 @@ remove_old_kernels() {
     
     local nvidia_pkgs
     mapfile -t nvidia_pkgs < <(get_nvidia_kmod_packages "${kept_full_versions[@]}")
-    to_remove+=("${nvidia_pkgs[@]}")
+    
+    if [[ ${#nvidia_pkgs[@]} -gt 0 ]] && [[ "$nvidia_mode" != "exclude" ]]; then
+        if [[ "$nvidia_mode" == "prompt" ]]; then
+            echo "Found ${#nvidia_pkgs[@]} old kmod-nvidia package(s) to remove."
+            read -rp "Remove them as well? [Y/n]: " ans
+            if [[ "$ans" =~ ^[Nn]$ ]]; then
+                echo "Skipping kmod-nvidia packages."
+                unset nvidia_pkgs
+            fi
+        fi
+        to_remove+=("${nvidia_pkgs[@]}")
+    elif [[ "$nvidia_mode" == "exclude" ]]; then
+        echo "Skipping kmod-nvidia packages (--exclude-nvidia)."
+    fi
     
     if [[ ${#to_remove[@]} -eq 0 ]]; then
         echo "No old kernel or kmod-nvidia packages to remove."
@@ -214,7 +241,7 @@ main() {
         echo
     fi
     
-    remove_old_kernels "$KEEP_COUNT" "$DRY_RUN"
+    remove_old_kernels "$KEEP_COUNT" "$DRY_RUN" "$NVIDIA_MODE"
 }
 
 main "$@"
