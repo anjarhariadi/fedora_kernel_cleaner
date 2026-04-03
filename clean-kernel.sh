@@ -113,12 +113,24 @@ get_running_kernel_version() {
 # kernel-headers and kernel-debug packages.
 get_kernel_packages() {
     local kernels
-    mapfile -t kernels < <(dnf rq --installonly --latest-limit=-1 2>/dev/null)
+    mapfile -t kernels < <(dnf rq --installonly --latest-limit=0 2>/dev/null)
     
     local all_pkgs=()
+    local seen_pkgs=()
     for kernel in "${kernels[@]}"; do
-        mapfile -t pkgs < <(rpm -qa | grep "^${kernel//+/\\+}" | grep -vE '^(kernel-headers|kernel-debug)' || true)
-        all_pkgs+=("${pkgs[@]}")
+        local kernel_version
+        kernel_version=$(echo "$kernel" | sed -E 's/^[^:]*:([0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc[0-9]+\..+)$/\1/')
+        mapfile -t pkgs < <(rpm -qa | grep "${kernel_version//+/\\+}" | grep -vE '^(kernel-headers|kernel-debug|kernel-srpm-macros|kmod-nvidia)' || true)
+        for pkg in "${pkgs[@]}"; do
+            local found=false
+            for seen in "${seen_pkgs[@]}"; do
+                [[ "$seen" == "$pkg" ]] && found=true && break
+            done
+            if [[ "$found" == "false" ]]; then
+                seen_pkgs+=("$pkg")
+                all_pkgs+=("$pkg")
+            fi
+        done
     done
     
     printf '%s\n' "${all_pkgs[@]}"
@@ -219,7 +231,7 @@ remove_old_kernels() {
     IFS=$'\n' sorted_versions=($(sort -V <<<"${unique_versions[*]}"))
     unset IFS
     
-    local to_remove_versions=("${sorted_versions[@]:0:${#sorted_versions[@]}-keep_count+1}")
+    local to_remove_versions=("${sorted_versions[@]:0:${#sorted_versions[@]}-keep_count}")
     
     if [[ ${#to_remove_versions[@]} -eq 0 ]] || [[ -z "${to_remove_versions[*]}" ]]; then
         echo "No old kernel packages to remove."
@@ -236,23 +248,10 @@ remove_old_kernels() {
         done
     done
     
-    local kept_full_versions=()
-    for ver in "${sorted_versions[@]:${#sorted_versions[@]}-keep_count}"; do
-        for pkg in "${kernel_pkgs[@]}"; do
-            if [[ "$pkg" =~ ([0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.fc[0-9]+\..+) ]] && [[ "${BASH_REMATCH[1]}" == "$ver" ]]; then
-                local full_ver="${BASH_REMATCH[0]}"
-                local found=false
-                for kv in "${kept_full_versions[@]}"; do
-                    [[ "$kv" == "$full_ver" ]] && found=true && break
-                done
-                [[ "$found" == "false" ]] && kept_full_versions+=("$full_ver")
-                break
-            fi
-        done
-    done
+    local kept_versions=("${sorted_versions[@]:${#sorted_versions[@]}-keep_count}")
     
     local nvidia_pkgs
-    mapfile -t nvidia_pkgs < <(get_nvidia_kmod_packages "${kept_full_versions[@]}")
+    mapfile -t nvidia_pkgs < <(get_nvidia_kmod_packages "${kept_versions[@]}")
     
     if [[ ${#nvidia_pkgs[@]} -gt 0 ]] && [[ "$nvidia_mode" != "exclude" ]]; then
         if [[ "$nvidia_mode" == "prompt" ]]; then
@@ -260,10 +259,12 @@ remove_old_kernels() {
             read -rp "Remove them as well? [Y/n]: " ans
             if [[ "$ans" =~ ^[Nn]$ ]]; then
                 echo "Skipping kmod-nvidia packages."
-                unset nvidia_pkgs
+                nvidia_pkgs=()
             fi
         fi
-        to_remove+=("${nvidia_pkgs[@]}")
+        if [[ ${#nvidia_pkgs[@]} -gt 0 ]]; then
+            to_remove+=("${nvidia_pkgs[@]}")
+        fi
     elif [[ "$nvidia_mode" == "exclude" ]]; then
         echo "Skipping kmod-nvidia packages (--exclude-nvidia)."
     fi

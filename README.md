@@ -37,14 +37,14 @@ clean-kernel [OPTIONS]
 
 ### Options
 
-| Option               | Description                                             |
-| -------------------- | ------------------------------------------------------- |
-| `-k, --keep N`      | Number of kernel versions to keep (default: 2)         |
-| `-n, --dry-run`     | Preview what would be removed without executing         |
-| `-y, --yes`         | Skip confirmation prompt                                |
-| `-N, --include-nvidia` | Include old kmod-nvidia packages in removal          |
-| `-x, --exclude-nvidia` | Exclude kmod-nvidia packages from removal            |
-| `-h, --help`        | Show help message                                       |
+| Option                 | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `-k, --keep N`         | Number of kernel versions to keep (default: 2)  |
+| `-n, --dry-run`        | Preview what would be removed without executing |
+| `-y, --yes`            | Skip confirmation prompt                        |
+| `-N, --include-nvidia` | Include old kmod-nvidia packages in removal     |
+| `-x, --exclude-nvidia` | Exclude kmod-nvidia packages from removal       |
+| `-h, --help`           | Show help message                               |
 
 ### Examples
 
